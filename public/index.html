@@ -78,7 +78,7 @@ async function hostRoom(){
       </div>
       <div class="row">
         <button onclick="GenCopyCode()">Copy room code</button>
-        <button class="secondary" onclick="startGame(currentGame.id,true)">Launch practice round</button>
+<button class="secondary" onclick="startMultiplayer()">Start multiplayer game</button>
       </div>`;
 
     socket.off('room:update');
@@ -96,8 +96,30 @@ async function hostRoom(){
 
 function GenCopyCode(){if(navigator.clipboard)navigator.clipboard.writeText(roomCode).then(()=>alert('Room code copied: '+roomCode)).catch(()=>alert('Your room code is '+roomCode));else alert('Your room code is '+roomCode)}
 function showJoin(){$('multiPanel').innerHTML=`<div class="field"><label>Enter your friend's room code</label><input id="joinCode" maxlength="8" placeholder="E.G. 7KQ2P" style="text-transform:uppercase"></div><button onclick="joinRoom()">Join room</button><div id="joinMsg"></div>`}
+function startMultiplayer() {if (window.arcadeSocket) {
+  window.arcadeSocket.off('game:countdown');
 
-function joinRoom(){
+  window.arcadeSocket.on('game:countdown', (data) => {
+    alert(`Multiplayer game starting in ${data.seconds} seconds!`);
+
+    if (data.gameId && currentGame) {
+      startGame(data.gameId, true);
+    }
+  });
+}
+  if (!window.arcadeSocket || !roomCode) {
+    alert('Create or join a room first.');
+    return;
+  }
+
+  window.arcadeSocket.emit('room:start', {
+    code: roomCode
+  }, (result) => {
+    if (!result || !result.ok) {
+      alert(result?.error || 'Could not start multiplayer game.');
+    }
+  });
+}
   const input = $('joinCode');
   const c = input.value.trim().toUpperCase();
 
