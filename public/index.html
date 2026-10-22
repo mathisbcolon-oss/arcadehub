@@ -77,7 +77,33 @@ const triviaQs=[['Which planet is known as the Red Planet?',['Mars','Venus','Jup
 function startTrivia(){clearInterval(gameTimer);score=0;gameData.q=0;function show(){if(gameData.q>=triviaQs.length){finishGame(false);return}let q=triviaQs[gameData.q];$('triviaQuestion').textContent=q[0];$('triviaProgress').textContent=`Question ${gameData.q+1} of ${triviaQs.length}`;$('triviaChoices').innerHTML=q[1].map((a,i)=>`<button class="secondary" onclick="triviaPick(${i})">${a}</button>`).join('')}window.triviaPick=i=>{if(i===triviaQs[gameData.q][2])score++;gameData.q++;show()};show()}
 function startAim(){score=0;let left=20;function move(){let a=$('aimArena'),t=$('aimTarget');if(!a||!t)return;t.style.left=Math.floor(Math.random()*Math.max(1,a.clientWidth-50))+'px';t.style.top=Math.floor(Math.random()*Math.max(1,a.clientHeight-50))+'px'}window.hitAim=()=>{score++;$('aimScore').textContent=score;move()};move();gameTimer=setInterval(()=>{left--;$('aimTimer').textContent=left+' seconds left';move();if(left<=0){clearInterval(gameTimer);gameTimer=null;finishGame(false)}},1000)}
 
-function finishGame(save=true){clearInterval(gameTimer);gameTimer=null;clearInterval(snakeInterval);snakeInterval=null;document.onkeydown=null;let final=Number(score)||0;if(currentGame&&currentGame.id==='reaction'&&final===0)final=score;let isReaction=currentGame&&currentGame.id==='reaction';let name=prompt('Nice run! Enter a name for the leaderboard:','Player');if(name&&name.trim()){let arr=JSON.parse(localStorage.getItem('arcadeScores')||'[]');arr.push({name:name.trim().slice(0,18),game:currentGame?currentGame.name:'Arcade',score:final,date:new Date().toISOString(),sortScore:final});arr.sort((a,b)=>b.sortScore-a.sortScore);localStorage.setItem('arcadeScores',JSON.stringify(arr.slice(0,100)));let today=new Date().toDateString(),daily=JSON.parse(localStorage.getItem('arcadeDaily')||'{}');if(daily.last!==today){let y=new Date(Date.now()-86400000).toDateString();daily.streak=daily.last===y?(daily.streak||0)+1:1;daily.last=today}daily.played=(daily.played||0)+1;localStorage.setItem('arcadeDaily',JSON.stringify(daily))}refreshScores();if($('modalBack').classList.contains('show')){$('gameArea')?.insertAdjacentHTML('beforeend',`<div class="notice"><b>Round finished!</b> Score: ${final}<br>Scores are saved on this device only in this demo.</div>`)}}
+
+async function submitGlobalScore(name, gameId, score) {
+  try {
+    const response = await fetch("/api/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        player_name: name,
+        game_id: gameId,
+        score: score
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Score submission failed");
+    }
+
+    console.log("Global score saved!");
+  } catch (error) {
+    console.error("Could not save global score:", error);
+  }
+}
+function finishGame(save=true){clearInterval(gameTimer);gameTimer=null;clearInterval(snakeInterval);snakeInterval=null;document.onkeydown=null;let final=Number(score)||0;if(currentGame&&currentGame.id==='reaction'&&final===0)final=score;let isReaction=currentGame&&currentGame.id==='reaction';let name=prompt('Nice run! Enter a name for the leaderboard:','Player');if(name&&name.trim()){let arr=JSON.parse(localStorage.getItem('arcadeScores')||'[]');arr.push({name:name.trim().slice(0,18),game:currentGame?currentGame.name:'Arcade',score:final,date:new Date().toISOString(),sortScore:final});arr.sort((a,b)=>b.sortScore-a.sortScore);localStorage.setItem('arcadeScores',JSON.stringify(arr.slice(0,100)));submitGlobalScore(
+  name.trim().slice(0, 18),
+  currentGame ? currentGame.id : "arcade",
+  final
+);let today=new Date().toDateString(),daily=JSON.parse(localStorage.getItem('arcadeDaily')||'{}');if(daily.last!==today){let y=new Date(Date.now()-86400000).toDateString();daily.streak=daily.last===y?(daily.streak||0)+1:1;daily.last=today}daily.played=(daily.played||0)+1;localStorage.setItem('arcadeDaily',JSON.stringify(daily))}refreshScores();if($('modalBack').classList.contains('show')){$('gameArea')?.insertAdjacentHTML('beforeend',`<div class="notice"><b>Round finished!</b> Score: ${final}<br>Scores are saved on this device only in this demo.</div>`)}}
 function getScores(){return JSON.parse(localStorage.getItem('arcadeScores')||'[]')}
 function refreshScores(){let arr=getScores();$('homeScores').innerHTML=arr.slice(0,5).map((x,i)=>`<div class="scoreline"><span><span class="rank">#${i+1}</span><b>${escapeHtml(x.name)}</b><div class="mini">${escapeHtml(x.game)}</div></span><b>${x.score}</b></div>`).join('')||'<p class="mini">No scores yet. Be the first.</p>';let d=JSON.parse(localStorage.getItem('arcadeDaily')||'{}');$('streak').textContent=(d.streak||0)+' days';$('played').textContent=d.played||0}
 function openLeaderboard(){let arr=getScores();openModal('🏆 Leaderboard',`<p class="mini">Scores saved in this browser. A shared global leaderboard needs a server.</p>${arr.length?arr.slice(0,30).map((x,i)=>`<div class="scoreline"><span><span class="rank">#${i+1}</span><b>${escapeHtml(x.name)}</b><div class="mini">${escapeHtml(x.game)} · ${new Date(x.date).toLocaleDateString()}</div></span><b>${x.score}</b></div>`).join(''):'<p>No scores yet. Play a game to set one.</p>'}<button class="secondary" style="margin-top:14px" onclick="closeModal()">Back to arcade</button>`)}
