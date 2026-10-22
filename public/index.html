@@ -105,7 +105,27 @@ function finishGame(save=true){clearInterval(gameTimer);gameTimer=null;clearInte
   final
 );let today=new Date().toDateString(),daily=JSON.parse(localStorage.getItem('arcadeDaily')||'{}');if(daily.last!==today){let y=new Date(Date.now()-86400000).toDateString();daily.streak=daily.last===y?(daily.streak||0)+1:1;daily.last=today}daily.played=(daily.played||0)+1;localStorage.setItem('arcadeDaily',JSON.stringify(daily))}refreshScores();if($('modalBack').classList.contains('show')){$('gameArea')?.insertAdjacentHTML('beforeend',`<div class="notice"><b>Round finished!</b> Score: ${final}<br>Scores are saved on this device only in this demo.</div>`)}}
 function getScores(){return JSON.parse(localStorage.getItem('arcadeScores')||'[]')}
-function refreshScores(){let arr=getScores();$('homeScores').innerHTML=arr.slice(0,5).map((x,i)=>`<div class="scoreline"><span><span class="rank">#${i+1}</span><b>${escapeHtml(x.name)}</b><div class="mini">${escapeHtml(x.game)}</div></span><b>${x.score}</b></div>`).join('')||'<p class="mini">No scores yet. Be the first.</p>';let d=JSON.parse(localStorage.getItem('arcadeDaily')||'{}');$('streak').textContent=(d.streak||0)+' days';$('played').textContent=d.played||0}
+
+async function refreshScores(){
+  try {
+    const response = await fetch('/api/leaderboard');
+    if (!response.ok) throw new Error('Leaderboard request failed');
+    const globalScores = await response.json();
+    $('homeScores').innerHTML = globalScores.slice(0,5).map((x,i)=>
+      `<div class="scoreline"><span><span class="rank">#${i+1}</span><b>${escapeHtml(x.player_name)}</b><div class="mini">${escapeHtml(x.game_id)}</div></span><b>${x.score}</b></div>`
+    ).join('') || '<p class="mini">No scores yet. Be the first.</p>';
+  } catch(error) {
+    console.error('Could not load global leaderboard:', error);
+    const arr = getScores();
+    $('homeScores').innerHTML = arr.slice(0,5).map((x,i)=>
+      `<div class="scoreline"><span><span class="rank">#${i+1}</span><b>${escapeHtml(x.name)}</b><div class="mini">${escapeHtml(x.game)}</div></span><b>${x.score}</b></div>`
+    ).join('') || '<p class="mini">Leaderboard temporarily unavailable.</p>';
+  }
+  let d = JSON.parse(localStorage.getItem('arcadeDaily') || '{}');
+  $('streak').textContent = (d.streak || 0) + ' days';
+  $('played').textContent = d.played || 0;
+}
+
 function openLeaderboard(){let arr=getScores();openModal('🏆 Leaderboard',`<p class="mini">Scores saved in this browser. A shared global leaderboard needs a server.</p>${arr.length?arr.slice(0,30).map((x,i)=>`<div class="scoreline"><span><span class="rank">#${i+1}</span><b>${escapeHtml(x.name)}</b><div class="mini">${escapeHtml(x.game)} · ${new Date(x.date).toLocaleDateString()}</div></span><b>${x.score}</b></div>`).join(''):'<p>No scores yet. Play a game to set one.</p>'}<button class="secondary" style="margin-top:14px" onclick="closeModal()">Back to arcade</button>`)}
 function openOwner(){openModal('Owner monetization dashboard',`<div class="notice">Demo dashboard only. Ad slots below are placeholders and do not generate revenue yet.</div><div class="dashgrid"><div class="metric"><b>3</b><span>Ad slot placements</span></div><div class="metric"><b>6</b><span>Games listed</span></div><div class="metric"><b>$0.00</b><span>Estimated ad revenue</span></div></div><h3 style="margin-top:20px">Ad placements</h3><div class="scoreline"><span>Top banner</span><span class="mini">Responsive · Reserved</span></div><div class="scoreline"><span>Between game sections</span><span class="mini">Responsive · Reserved</span></div><div class="scoreline"><span>Game result screen</span><span class="mini">Reserved · Not active</span></div><h3 style="margin-top:20px">Launch checklist</h3><label style="display:block;padding:6px"><input type="checkbox"> Connect a real-time multiplayer backend</label><label style="display:block;padding:6px"><input type="checkbox"> Store accounts and scores securely on a server</label><label style="display:block;padding:6px"><input type="checkbox"> Publish a privacy policy and terms</label><label style="display:block;padding:6px"><input type="checkbox"> Apply to an ad network and follow its policies</label><label style="display:block;padding:6px"><input type="checkbox"> Test on phones, school Wi-Fi and desktop</label><div class="notice">Ad networks have approval requirements and age, privacy, and traffic rules. Don't expect immediate earnings just from adding boxes. If you're under 18, involve a parent or guardian for publisher/payment accounts.</div>`)}
 renderGames();refreshScores();
