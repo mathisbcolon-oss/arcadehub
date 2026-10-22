@@ -43,7 +43,57 @@ function scrollToId(id){$(id).scrollIntoView({behavior:'smooth'})}
 function openModal(title,content){$('modalTitle').textContent=title;$('modalContent').innerHTML=content;$('modalBack').classList.add('show')}
 function closeModal(){clearInterval(gameTimer);gameTimer=null;$('modalBack').classList.remove('show')}
 function openMulti(id){currentGame=games.find(g=>g.id===id);openModal(currentGame.name+' · Multiplayer',`<p style="color:var(--muted)">Make a private room and invite friends with the code. This preview simulates the room flow. Real cross-device multiplayer needs a backend and live connection.</p><div class="row"><button onclick="hostRoom()">＋ Host a room</button><button class="secondary" onclick="showJoin()">Join with code</button></div><div id="multiPanel"></div>`)}
-function hostRoom(){roomCode=Math.random().toString(36).slice(2,7).toUpperCase();roomMode='host';$('multiPanel').innerHTML=`<div class="notice"><b>Room created: <span style="font-size:22px;letter-spacing:4px">${roomCode}</span></b><br>Share this code with your friends. In this demo, rooms aren't connected across devices yet.</div><div class="field"><label>Round length</label><select id="roundLength"><option value="30">30 seconds</option><option value="60" selected>60 seconds</option><option value="120">2 minutes</option><option value="0">No timer</option></select></div><div class="row"><button onclick="GenCopyCode()">Copy room code</button><button class="secondary" onclick="startGame(currentGame.id,true)">Launch practice round</button></div>`}
+
+async function hostRoom(){
+  if (typeof io !== 'function') {
+    alert('Multiplayer connection is not loaded. Please refresh and try again.');
+    return;
+  }
+
+  if (!window.arcadeSocket) {
+    window.arcadeSocket = io();
+  }
+
+  const socket = window.arcadeSocket;
+  const name = prompt('Enter your player name:') || 'Player 1';
+
+  socket.emit('room:create', {
+    gameId: currentGame ? currentGame.id : 'clickrush',
+    name: name.trim().slice(0, 20),
+    intensity: 'Normal'
+  }, (result) => {
+    if (!result || !result.ok) {
+      alert(result?.error || 'Could not create room.');
+      return;
+    }
+
+    roomCode = result.room.code;
+    roomMode = 'host';
+
+    $('multiPanel').innerHTML = `
+      <div class="notice">
+        <b>Room created: <span style="font-size:22px;letter-spacing:4px">${escapeHtml(roomCode)}</span></b>
+        <br>Share this code with your friend.
+        <br><span id="roomStatus">Waiting for another player...</span>
+      </div>
+      <div class="row">
+        <button onclick="GenCopyCode()">Copy room code</button>
+        <button class="secondary" onclick="startGame(currentGame.id,true)">Launch practice round</button>
+      </div>`;
+
+    socket.off('room:update');
+    socket.on('room:update', (room) => {
+      if (room.code !== roomCode) return;
+      const status = $('roomStatus');
+      if (status) {
+        status.textContent = room.players.length >= 2
+          ? 'Friend joined! Both players are connected.'
+          : 'Waiting for another player...';
+      }
+    });
+  });
+}
+
 function GenCopyCode(){if(navigator.clipboard)navigator.clipboard.writeText(roomCode).then(()=>alert('Room code copied: '+roomCode)).catch(()=>alert('Your room code is '+roomCode));else alert('Your room code is '+roomCode)}
 function showJoin(){$('multiPanel').innerHTML=`<div class="field"><label>Enter your friend's room code</label><input id="joinCode" maxlength="8" placeholder="E.G. 7KQ2P" style="text-transform:uppercase"></div><button onclick="joinRoom()">Join room</button><div id="joinMsg"></div>`}
 function joinRoom(){let c=$('joinCode').value.trim().toUpperCase();if(c.length<4){$('joinMsg').innerHTML='<p style="color:var(--pink)">Enter a valid room code.</p>';return}$('joinMsg').innerHTML=`<div class="notice">Code <b>${escapeHtml(c)}</b> entered. This demo cannot discover a host on another device yet. To make this work for real friends, connect a multiplayer server.</div>`}
