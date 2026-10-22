@@ -96,7 +96,59 @@ async function hostRoom(){
 
 function GenCopyCode(){if(navigator.clipboard)navigator.clipboard.writeText(roomCode).then(()=>alert('Room code copied: '+roomCode)).catch(()=>alert('Your room code is '+roomCode));else alert('Your room code is '+roomCode)}
 function showJoin(){$('multiPanel').innerHTML=`<div class="field"><label>Enter your friend's room code</label><input id="joinCode" maxlength="8" placeholder="E.G. 7KQ2P" style="text-transform:uppercase"></div><button onclick="joinRoom()">Join room</button><div id="joinMsg"></div>`}
-function joinRoom(){let c=$('joinCode').value.trim().toUpperCase();if(c.length<4){$('joinMsg').innerHTML='<p style="color:var(--pink)">Enter a valid room code.</p>';return}$('joinMsg').innerHTML=`<div class="notice">Code <b>${escapeHtml(c)}</b> entered. This demo cannot discover a host on another device yet. To make this work for real friends, connect a multiplayer server.</div>`}
+
+function joinRoom(){
+  const input = $('joinCode');
+  const c = input.value.trim().toUpperCase();
+
+  if (c.length < 4) {
+    $('joinMsg').innerHTML = '<p style="color:var(--pink)">Enter a valid room code.</p>';
+    return;
+  }
+
+  if (typeof io !== 'function') {
+    $('joinMsg').innerHTML = '<p style="color:var(--pink)">Multiplayer connection is not loaded. Refresh and try again.</p>';
+    return;
+  }
+
+  if (!window.arcadeSocket) {
+    window.arcadeSocket = io();
+  }
+
+  const name = prompt('Enter your player name:') || 'Player 2';
+
+  window.arcadeSocket.emit('room:join', {
+    code: c,
+    name: name.trim().slice(0, 20)
+  }, (result) => {
+    if (!result || !result.ok) {
+      $('joinMsg').innerHTML = `<p style="color:var(--pink)">${escapeHtml(result?.error || 'Could not join room.')}</p>`;
+      return;
+    }
+
+    roomCode = result.room.code;
+    roomMode = 'guest';
+
+    $('joinMsg').innerHTML = `
+      <div class="notice">
+        <b>Joined room ${escapeHtml(roomCode)}!</b>
+        <br>You are connected to the host.
+        <br><span id="guestRoomStatus">Waiting for the host to start...</span>
+      </div>`;
+
+    window.arcadeSocket.off('room:update');
+    window.arcadeSocket.on('room:update', (room) => {
+      if (room.code !== roomCode) return;
+      const status = $('guestRoomStatus');
+      if (status) {
+        status.textContent = room.status === 'playing'
+          ? 'The host started the game!'
+          : 'Connected. Waiting for the host to start...';
+      }
+    });
+  });
+}
+
 function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function startGame(id,multi=false){clearInterval(gameTimer);currentGame=games.find(g=>g.id===id);score=0;gameStart=Date.now();gameData={};let room=multi?`<div class="notice">Practice room ${roomCode?'<b>'+roomCode+'</b>':''} · <button class="ghost" onclick="finishGame()">🏁 End round</button></div>`:'';let area='';if(id==='clickrush')area=`<p>Tap the button as many times as you can before time runs out.</p><div class="bigscore" id="scoreText">0</div><p id="timerText">15 seconds left</p><button style="font-size:22px;padding:18px 35px" id="targetBtn" onclick="tapTarget()">TAP!</button>`;if(id==='reaction')area=`<p id="reactionInfo">Press start, wait for green, then click as fast as possible.</p><div id="reactionPad" style="margin:18px auto;max-width:360px;padding:35px 10px;border-radius:14px;background:#34384a;font-size:24px;font-weight:900">READY?</div><button onclick="reactionStart()">Start test</button>`;if(id==='memory')area=`<p>Find all 8 matching pairs. Fewer moves is better.</p><div class="mini">Moves: <b id="moves">0</b> · Matches: <b id="matches">0</b></div><div id="memoryGrid" class="memorygrid"></div><button class="secondary" onclick="startGame('memory',${multi})">Restart</button>`;if(id==='numberdash')area=`<p>Solve as many as possible in 30 seconds.</p><div class="bigscore" id="numScore">0</div><div id="numQuestion" style="font-size:28px;font-weight:900;margin:15px">Ready?</div><div class="row" style="max-width:400px;margin:auto"><input id="numAnswer" type="number" placeholder="Your answer"><button onclick="checkNumber()">Submit</button></div><p id="numFeedback"></p><button class="secondary" onclick="numberNext()">Start / next</button><p id="numTimer"></p>`;if(id==='snake')area=`<p>Use arrow keys or WASD. Eat the glowing dot. Don't hit the walls or yourself.</p><canvas id="snakeCanvas" width="360" height="300"></canvas><div class="bigscore" id="snakeScore">0</div><button onclick="startSnake()">Start / restart snake</button>`;if(id==='breakout')area=`<p>Move your mouse or finger left and right to bounce the ball.</p><canvas id="brickCanvas" width="440" height="300"></canvas><div class="bigscore" id="brickScore">0</div><button onclick="startBreakout()">Start / restart</button>`;
 if(id==='whack')area=`<p>Tap the target as quickly as you can. You have 15 seconds.</p><div class="bigscore" id="whackScore">0</div><div id="whackGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:390px;margin:15px auto"></div><p id="whackTimer">15 seconds left</p>`;
