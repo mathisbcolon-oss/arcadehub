@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const { Server } = require("socket.io");
 
 const app = express();
+app.use(express.json({ limit: "10kb" }));
 const server = http.createServer(app);
 const io = new Server(server);
 
@@ -21,6 +22,79 @@ app.get("/", (_req, res) => {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, app: "ArcadeHub" });
+});
+
+
+app.get("/api/leaderboard", async (_req, res) => {
+  try {
+    const response = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/leaderboard?select=player_name,game_id,score,created_at&order=score.desc&limit=100`,
+      {
+        headers: {
+          apikey: process.env.SUPABASE_SECRET_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      console.error("Leaderboard read failed:", await response.text());
+      return res.status(502).json({ error: "Could not load leaderboard." });
+    }
+
+    res.json(await response.json());
+  } catch (error) {
+    console.error("Leaderboard error:", error);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
+app.post("/api/score", async (req, res) => {
+  try {
+    const { player_name, game_id, score } = req.body || {};
+
+    if (
+      typeof player_name !== "string" ||
+      player_name.trim().length < 1 ||
+      player_name.trim().length > 20 ||
+      typeof game_id !== "string" ||
+      game_id.length < 1 ||
+      game_id.length > 50 ||
+      !Number.isSafeInteger(score) ||
+      score < 0 ||
+      score > 1000000
+    ) {
+      return res.status(400).json({ error: "Invalid score data." });
+    }
+
+    const response = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/leaderboard`,
+      {
+        method: "POST",
+        headers: {
+          apikey: process.env.SUPABASE_SECRET_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation"
+        },
+        body: JSON.stringify({
+          player_name: player_name.trim(),
+          game_id,
+          score
+        })
+      }
+    );
+
+    if (!response.ok) {
+      console.error("Score save failed:", await response.text());
+      return res.status(502).json({ error: "Could not save score." });
+    }
+
+    res.status(201).json({ ok: true, score: (await response.json())[0] });
+  } catch (error) {
+    console.error("Score save error:", error);
+    res.status(500).json({ error: "Server error." });
+  }
 });
 
 // Demo rooms reset when the server restarts.
