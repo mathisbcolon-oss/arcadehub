@@ -55,6 +55,7 @@ async function hostRoom(){
   }
 
   const socket = window.arcadeSocket;
+  setupMultiplayerSocket(socket);
   const name = prompt('Enter your player name:') || 'Player 1';
 
   socket.emit('room:create', {
@@ -96,17 +97,17 @@ async function hostRoom(){
 
 function GenCopyCode(){if(navigator.clipboard)navigator.clipboard.writeText(roomCode).then(()=>alert('Room code copied: '+roomCode)).catch(()=>alert('Your room code is '+roomCode));else alert('Your room code is '+roomCode)}
 function showJoin(){$('multiPanel').innerHTML=`<div class="field"><label>Enter your friend's room code</label><input id="joinCode" maxlength="8" placeholder="E.G. 7KQ2P" style="text-transform:uppercase"></div><button onclick="joinRoom()">Join room</button><div id="joinMsg"></div>`}
-function startMultiplayer() {if (window.arcadeSocket) {
-  window.arcadeSocket.off('game:countdown');
-
-  window.arcadeSocket.on('game:countdown', (data) => {
+function setupMultiplayerSocket(socket) {
+  socket.off('game:countdown');
+  socket.on('game:countdown', (data) => {
     alert(`Multiplayer game starting in ${data.seconds} seconds!`);
-
-    if (data.gameId && currentGame) {
+    if (data.gameId) {
       startGame(data.gameId, true);
     }
   });
 }
+
+function startMultiplayer() {
   if (!window.arcadeSocket || !roomCode) {
     alert('Create or join a room first.');
     return;
@@ -120,6 +121,8 @@ function startMultiplayer() {if (window.arcadeSocket) {
     }
   });
 }
+
+function joinRoom() {
   const input = $('joinCode');
   const c = input.value.trim().toUpperCase();
 
@@ -136,6 +139,7 @@ function startMultiplayer() {if (window.arcadeSocket) {
   if (!window.arcadeSocket) {
     window.arcadeSocket = io();
   }
+  setupMultiplayerSocket(window.arcadeSocket);
 
   const name = prompt('Enter your player name:') || 'Player 2';
 
